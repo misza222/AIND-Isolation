@@ -20,6 +20,8 @@ class IsolationTest(unittest.TestCase):
         self.player2 = "Player2"
         self.game = isolation.Board(self.player1, self.player2)
 
+    def test_something(self):
+        self.assertTrue(self.game == self.game)
 
 if __name__ == '__main__':
     unittest.main()

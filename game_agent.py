@@ -212,10 +212,30 @@ class MinimaxPlayer(IsolationPlayer):
         if self.time_left() < self.TIMER_THRESHOLD:
             raise SearchTimeout()
 
-        # TODO: finish this function!
-        raise NotImplementedError
+        moves = game.get_legal_moves(self)
+        if depth > 0 and moves:
+            move_scores = {move: self.minimax_score(game.forecast_move(move), depth - 1) for move in moves}
 
+            return sorted(move_scores, key=lambda move: move_scores[move], reverse=True)[0]
+        else: # we've lost or too deep
+            return (-1, -1)
 
+    def minimax_score(self, game, depth, maximize=True):
+        if self.time_left() < self.TIMER_THRESHOLD:
+            raise SearchTimeout()
+
+        if depth == 0:
+            return self.score(game, self)
+
+        moves = game.get_legal_moves(self)
+        if not moves:
+            return self.score(game, self)
+        else:
+            move_scores = {move: self.minimax_score(game.forecast_move(move), depth - 1, not maximize) for move in moves}
+
+            print("move scores: ", move_scores, " maximization: ", maximize, " sorted index 0: ",sorted(move_scores, key=lambda move: move_scores[move], reverse=True)[0])
+            return move_scores[sorted(move_scores, key=lambda move: move_scores[move], reverse=True)[0]]
+            
 class AlphaBetaPlayer(IsolationPlayer):
     """Game-playing agent that chooses a move using iterative deepening minimax
     search with alpha-beta pruning. You must finish and test this player to
@@ -305,5 +325,9 @@ class AlphaBetaPlayer(IsolationPlayer):
         if self.time_left() < self.TIMER_THRESHOLD:
             raise SearchTimeout()
 
-        # TODO: finish this function!
-        raise NotImplementedError
+        moves = game.get_legal_moves(self)
+
+        if depth > 0 and moves:
+            return moves[0]
+        else:
+            return (-1, -1)
