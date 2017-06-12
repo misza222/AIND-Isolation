@@ -212,30 +212,55 @@ class MinimaxPlayer(IsolationPlayer):
         if self.time_left() < self.TIMER_THRESHOLD:
             raise SearchTimeout()
 
-        moves = game.get_legal_moves(self)
-        if depth > 0 and moves:
-            move_scores = {move: self.minimax_score(game.forecast_move(move), depth - 1) for move in moves}
+        moves = game.get_legal_moves()
+        # set a best move to the worst one for now, and improve :)
+        best_move = (-1, -1)
 
-            return sorted(move_scores, key=lambda move: move_scores[move], reverse=True)[0]
-        else: # we've lost or too deep
-            return (-1, -1)
+        # if there are no moves, or someone set depth to something silly we return that worst move
+        # but otherwise:
+        if depth > 0 and len(moves) > 0:
+            # we take min from the nodes blow (opponents nodes), and return move that maximizes our outcome
+            _, best_move = max([(self.min_value(game.forecast_move(move), depth - 1), move) for move in moves])
 
-    def minimax_score(self, game, depth, maximize=True):
+        return best_move
+
+    def min_value(self, game, depth):
+        """
+            It compute what oponent would choose in a given situation and return
+            optimal value from his point of view
+        """
+        if self.time_left() < self.TIMER_THRESHOLD:
+            raise SearchTimeout()
+
+        # if we can't explore any further, we esimate value of the current node
+        if depth == 0:
+            return self.score(game, self)
+
+        moves = game.get_legal_moves()
+
+        # same if there are no legal moves (it actually means that we've lost)
+        if len(moves) == 0:
+            return self.score(game, self)
+
+        return min([self.max_value(game.forecast_move(move), depth - 1) for move in moves])
+
+    def max_value(self, game, depth):
+        """
+            Almost a copy of the min_value method above, but reversed
+        """
         if self.time_left() < self.TIMER_THRESHOLD:
             raise SearchTimeout()
 
         if depth == 0:
             return self.score(game, self)
 
-        moves = game.get_legal_moves(self)
-        if not moves:
-            return self.score(game, self)
-        else:
-            move_scores = {move: self.minimax_score(game.forecast_move(move), depth - 1, not maximize) for move in moves}
+        moves = game.get_legal_moves()
 
-            print("move scores: ", move_scores, " maximization: ", maximize, " sorted index 0: ",sorted(move_scores, key=lambda move: move_scores[move], reverse=True)[0])
-            return move_scores[sorted(move_scores, key=lambda move: move_scores[move], reverse=True)[0]]
-            
+        if len(moves) == 0:
+            return self.score(game, self)
+
+        return max([self.min_value(game.forecast_move(move), depth - 1) for move in moves])
+
 class AlphaBetaPlayer(IsolationPlayer):
     """Game-playing agent that chooses a move using iterative deepening minimax
     search with alpha-beta pruning. You must finish and test this player to
@@ -274,8 +299,17 @@ class AlphaBetaPlayer(IsolationPlayer):
         """
         self.time_left = time_left
 
-        # TODO: finish this function!
-        raise NotImplementedError
+        best_move = (-1, -1)
+
+        # handle Timeout, and return best move when we reach it
+        # (for our purposes 1000 depth if infinity really)
+        try:
+            for depth in range(1000):
+                best_move = self.alphabeta(game, depth)
+        except SearchTimeout:
+            pass
+
+        return best_move
 
     def alphabeta(self, game, depth, alpha=float("-inf"), beta=float("inf")):
         """Implement depth-limited minimax search with alpha-beta pruning as
@@ -325,9 +359,80 @@ class AlphaBetaPlayer(IsolationPlayer):
         if self.time_left() < self.TIMER_THRESHOLD:
             raise SearchTimeout()
 
-        moves = game.get_legal_moves(self)
+        moves = game.get_legal_moves()
+        # set a best move to the worst one for now, and improve :)
+        best_move    = (-1, -1)
+        best_utility = float("-inf")
+        # if we are out of time, or no legal moves, we still return best_move wchich is (-1, -1)
+        if depth > 0 and len(moves) > 0:
+            for move in moves:
+                utility = self.min_value(game.forecast_move(move), depth - 1, alpha, beta)
 
-        if depth > 0 and moves:
-            return moves[0]
-        else:
-            return (-1, -1)
+                # if we find a better utitliy, we store it
+                if utility > best_utility:
+                    best_move    = move
+                    best_utility = utility
+                    # we need to keep an eye on alpha and pass it on to next subtree
+                    # so min_value method can make a pruning decision if it finds
+                    # a utility that is less than our best utility so far
+                    alpha = utility
+
+        return best_move
+
+    def max_value(self, game, depth, alpha, beta):
+        """
+            Almost a copy of the min_value method above, but reversed
+        """
+        if self.time_left() < self.TIMER_THRESHOLD:
+            raise SearchTimeout()
+
+        if depth == 0:
+            return self.score(game, self)
+
+        moves = game.get_legal_moves()
+
+        if len(moves) == 0:
+            return self.score(game, self)
+
+        best_utility = float("-inf")
+        for move in moves:
+            utility = self.min_value(game.forecast_move(move), depth - 1, alpha, beta)
+            # we are in the max function, and if the value we experience is more than
+            # minimum on the level above, it wont be considered by the min player anyway
+            # so we can safely ignore any other moves in this maximizing node
+            if utility >= beta:
+                return utility
+            best_utility = max([best_utility, utility])
+            alpha = max([utility, alpha])
+
+        # theoretically we could just return alpha here, as we always pick first move
+        # with the highest utility score, but in case we change our mind, and want to
+        # choose random, I return actual best_utility from MAX point of view
+        return best_utility
+
+    def min_value(self, game, depth, alpha, beta):
+        """
+            It compute what oponent would choose in a given situation and return
+            optimal value from his point of view
+        """
+        if self.time_left() < self.TIMER_THRESHOLD:
+            raise SearchTimeout()
+
+        if depth == 0:
+            return self.score(game, self)
+
+        moves = game.get_legal_moves()
+
+        if len(moves) == 0:
+            return self.score(game, self)
+
+        best_utility = float("inf")
+        for move in moves:
+            utility = self.max_value(game.forecast_move(move), depth - 1, alpha, beta)
+            if utility <= alpha:
+                return utility
+            best_utility = min([best_utility, utility])
+            beta = min([utility, beta])
+
+        # why best_utility not beta returned? see max_value method for explanation
+        return best_utility
